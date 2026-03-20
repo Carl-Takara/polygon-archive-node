@@ -32,16 +32,17 @@ if ! command -v docker &>/dev/null; then
 fi
 
 # ---- Install Docker Compose if missing ----
-if ! command -v docker-compose &>/dev/null; then
-  echo "[*] Installing Docker Compose..."
+if ! docker compose version &>/dev/null; then
+  echo "[*] Installing Docker Compose plugin..."
+  mkdir -p /usr/local/lib/docker/cli-plugins
   COMPOSE_VERSION=$(curl -s https://api.github.com/repos/docker/compose/releases/latest | grep '"tag_name"' | cut -d'"' -f4)
   curl -L "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" \
-    -o /usr/local/bin/docker-compose
-  chmod +x /usr/local/bin/docker-compose
+    -o /usr/local/lib/docker/cli-plugins/docker-compose
+  chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 fi
 
 echo "  Docker:         $(docker --version)"
-echo "  Docker Compose: $(docker-compose --version)"
+echo "  Docker Compose: $(docker compose --version)"
 
 echo ""
 echo "========================================"
@@ -154,16 +155,16 @@ echo "========================================"
 cd "$PROJECT_DIR"
 
 echo "[*] Pulling Docker images..."
-docker-compose pull
+docker compose pull
 
 echo "[*] Starting Heimdall + Erigon..."
-docker-compose up -d
+docker compose up -d
 
 echo "[*] Waiting 10s for services to initialize..."
 sleep 10
 
 echo "[*] Service status:"
-docker-compose ps
+docker compose ps
 
 echo ""
 echo "[*] Checking Erigon RPC..."
@@ -178,7 +179,7 @@ echo "  Setup Complete!"
 echo "========================================"
 echo ""
 echo "  Useful commands:"
-echo "    docker-compose -f $PROJECT_DIR/docker-compose.yml logs -f erigon"
-echo "    docker-compose -f $PROJECT_DIR/docker-compose.yml logs -f heimdall"
+echo "    docker compose -f $PROJECT_DIR/docker-compose.yml logs -f erigon"
+echo "    docker compose -f $PROJECT_DIR/docker-compose.yml logs -f heimdall"
 echo "    bash $PROJECT_DIR/scripts/monitor.sh"
 echo ""
