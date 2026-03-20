@@ -1,0 +1,120 @@
+name: Deploy Polygon Archive Node
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'deploy'
+        type: choice
+        options:
+          - deploy
+          - restart
+          - stop
+          - status
+
+env:
+  SERVER_IP: ${{ secrets.SERVER_IP }}
+  SERVER_USER: ${{ secrets.SERVER_USER }}
+  REMOTE_DIR: /opt/polygon-node
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event.inputs.action == 'deploy'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload files to server
+        run: |
+          ssh $SERVER_USER@$SERVER_IP "mkdir -p $REMOTE_DIR/scripts"
+          scp docker-compose.yml $SERVER_USER@$SERVER_IP:$REMOTE_DIR/
+          scp scripts/remote-setup.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
+          scp scripts/monitor.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
+          scp scripts/snapshot-download.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
+
+      - name: Create .env on server
+        run: |
+          ssh $SERVER_USER@$SERVER_IP "cat > $REMOTE_DIR/.env" <<EOF
+          SERVER_IP=${{ secrets.SERVER_IP }}
+          SERVER_USER=${{ secrets.SERVER_USER }}
+          SERVER_HOSTNAME=${{ secrets.SERVER_HOSTNAME }}
+          ETH_RPC_URL=${{ secrets.ETH_RPC_URL }}
+          HEIMDALL_SEEDS=${{ secrets.HEIMDALL_SEEDS }}
+          ERIGON_DATA_DIR=/data/erigon
+          HEIMDALL_DATA_DIR=/data/heimdall
+          USE_SNAPSHOT=true
+          EOF
+
+      - name: Run deployment
+        run: |
+          ssh $SERVER_USER@$SERVER_IP "chmod +x $REMOTE_DIR/scripts/*.sh && bash $REMOTE_DIR/scripts/remote-setup.sh"
+
+      - name: Health check
+        run: |
+          sleep 15
+          ssh $SERVER_USER@$SERVER_IP "curl -sf --max-time 10 http://localhost:8545 \
+            -X POST -H 'Content-Type: application/json' \
+            -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_syncing\",\"params\":[],\"id\":1}'" || echo "Node still initializing..."
+
+  restart:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'restart'
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Restart services
+        run: |
+          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down && docker compose up -d"
+
+      - name: Check status
+        run: |
+          sleep 10
+          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose ps"
+
+  stop:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'stop'
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Stop services
+        run: |
+          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down"
+
+  status:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'status'
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Node status
+        run: |
+          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose ps && echo '' && bash scripts/monitor.sh"

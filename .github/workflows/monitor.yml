@@ -1,0 +1,34 @@
+name: Node Health Monitor
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'  # Every 6 hours
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Check containers
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "docker compose -f /opt/polygon-node/docker-compose.yml ps --format json" | tee /tmp/containers.json
+          # Fail if any container is not running
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "docker compose -f /opt/polygon-node/docker-compose.yml ps" | grep -q "Exit" && echo "::error::Container exited!" && exit 1 || true
+
+      - name: Check sync status
+        run: |
+          RESULT=$(ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "curl -sf --max-time 10 http://localhost:8545 \
+            -X POST -H 'Content-Type: application/json' \
+            -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_blockNumber\",\"params\":[],\"id\":1}'" 2>/dev/null || echo '{"error":"RPC unreachable"}')
+          echo "Block number response: $RESULT"
+
+      - name: Check disk usage
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_IP }} "df -h /data && echo '' && du -sh /data/erigon /data/heimdall 2>/dev/null || true"

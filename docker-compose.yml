@@ -1,0 +1,75 @@
+services:
+  heimdall:
+    image: 0xpolygon/heimdall:latest
+    container_name: heimdall
+    restart: unless-stopped
+    command: >
+      start
+      --home=/heimdall-data
+      --chain=mainnet
+      --rest-server
+      --seeds=${HEIMDALL_SEEDS}
+      --eth_rpc_url=${ETH_RPC_URL}
+    ports:
+      - "127.0.0.1:1317:1317"  # REST API (internal only)
+      - "26656:26656"            # P2P
+      - "26657:26657"            # Tendermint RPC
+    volumes:
+      - ${HEIMDALL_DATA_DIR:-./data/heimdall}:/heimdall-data
+    networks:
+      - polygon
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"
+
+  erigon:
+    image: erigontech/erigon:latest
+    container_name: erigon
+    restart: unless-stopped
+    depends_on:
+      - heimdall
+    command: >
+      --chain=bor-mainnet
+      --datadir=/erigon-data
+      --bor.heimdall=http://heimdall:1317
+      --http
+      --http.addr=0.0.0.0
+      --http.port=8545
+      --http.vhosts=*
+      --http.corsdomain=*
+      --http.api=eth,debug,net,trace,web3,erigon,bor
+      --ws
+      --ws.port=8546
+      --torrent.download.rate=100mb
+      --snapshots=true
+      --db.size.limit=3TB
+      --prune=
+      --prune.h.older=0
+      --prune.r.older=0
+      --prune.t.older=0
+      --prune.c.older=0
+    ports:
+      - "8545:8545"   # HTTP RPC
+      - "8546:8546"   # WebSocket
+      - "30303:30303"  # P2P TCP
+      - "30303:30303/udp"  # P2P UDP
+      - "42069:42069"  # Torrent
+    volumes:
+      - ${ERIGON_DATA_DIR:-./data/erigon}:/erigon-data
+    networks:
+      - polygon
+    logging:
+      driver: json-file
+      options:
+        max-size: "200m"
+        max-file: "5"
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+networks:
+  polygon:
+    driver: bridge
