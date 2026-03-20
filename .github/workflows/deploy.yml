@@ -22,6 +22,7 @@ env:
   SERVER_IP: ${{ secrets.SERVER_IP }}
   SERVER_USER: ${{ secrets.SERVER_USER }}
   REMOTE_DIR: /opt/polygon-node
+  SSH_OPTS: -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no
 
 jobs:
   deploy:
@@ -33,21 +34,21 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Upload files to server
         run: |
-          ssh $SERVER_USER@$SERVER_IP "mkdir -p $REMOTE_DIR/scripts"
-          scp docker-compose.yml $SERVER_USER@$SERVER_IP:$REMOTE_DIR/
-          scp scripts/remote-setup.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
-          scp scripts/monitor.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
-          scp scripts/snapshot-download.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "mkdir -p $REMOTE_DIR/scripts"
+          scp $SSH_OPTS docker-compose.yml $SERVER_USER@$SERVER_IP:$REMOTE_DIR/
+          scp $SSH_OPTS scripts/remote-setup.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
+          scp $SSH_OPTS scripts/monitor.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
+          scp $SSH_OPTS scripts/snapshot-download.sh $SERVER_USER@$SERVER_IP:$REMOTE_DIR/scripts/
 
       - name: Create .env on server
         run: |
-          ssh $SERVER_USER@$SERVER_IP "cat > $REMOTE_DIR/.env << 'ENVEOF'
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "cat > $REMOTE_DIR/.env << 'ENVEOF'
           SERVER_IP=${{ secrets.SERVER_IP }}
           SERVER_USER=${{ secrets.SERVER_USER }}
           SERVER_HOSTNAME=polygon.fiamma.io
@@ -60,12 +61,12 @@ jobs:
 
       - name: Run deployment
         run: |
-          ssh $SERVER_USER@$SERVER_IP "chmod +x $REMOTE_DIR/scripts/*.sh && bash $REMOTE_DIR/scripts/remote-setup.sh"
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "chmod +x $REMOTE_DIR/scripts/*.sh && bash $REMOTE_DIR/scripts/remote-setup.sh"
 
       - name: Health check
         run: |
           sleep 15
-          ssh $SERVER_USER@$SERVER_IP "curl -sf --max-time 10 http://localhost:8545 \
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "curl -sf --max-time 10 http://localhost:8545 \
             -X POST -H 'Content-Type: application/json' \
             -d '{\"jsonrpc\":\"2.0\",\"method\":\"eth_syncing\",\"params\":[],\"id\":1}'" || echo "Node still initializing..."
 
@@ -76,18 +77,18 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Restart services
         run: |
-          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down && docker compose up -d"
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down && docker compose up -d"
 
       - name: Check status
         run: |
           sleep 10
-          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose ps"
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose ps"
 
   stop:
     runs-on: ubuntu-latest
@@ -96,13 +97,13 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Stop services
         run: |
-          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down"
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose down"
 
   status:
     runs-on: ubuntu-latest
@@ -111,10 +112,10 @@ jobs:
       - name: Setup SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Node status
         run: |
-          ssh $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose ps && echo '' && bash scripts/monitor.sh"
+          ssh $SSH_OPTS $SERVER_USER@$SERVER_IP "cd $REMOTE_DIR && docker compose ps && echo '' && bash scripts/monitor.sh"
