@@ -30,14 +30,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Upload files to server
         run: |
@@ -75,14 +74,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'restart'
     steps:
-      - name: Setup SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Restart services
         run: |
@@ -97,14 +94,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'stop'
     steps:
-      - name: Setup SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Stop services
         run: |
@@ -114,14 +109,12 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.inputs.action == 'status'
     steps:
-      - name: Setup SSH key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts 2>/dev/null
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts 2>/dev/null
 
       - name: Node status
         run: |
